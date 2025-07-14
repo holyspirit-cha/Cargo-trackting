@@ -170,8 +170,11 @@
     // --- Recent Searches Functions ---
     function saveSearch(blNo, blYear) {
         let searches = JSON.parse(localStorage.getItem(RECENT_SEARCHES_KEY)) || [];
+        // 기존에 있던 동일한 검색 기록 제거
         searches = searches.filter(s => !(s.blNo === blNo && s.blYear === blYear));
+        // 새 검색 기록을 맨 앞에 추가
         searches.unshift({ blNo, blYear });
+        // 최대 갯수 유지
         if (searches.length > MAX_RECENT_SEARCHES) {
             searches.pop();
         }
@@ -258,7 +261,7 @@
     // --- Main Logic ---
     async function getClearanceInfo() {
         const apiKey = document.getElementById('apiKey').value;
-        const blNo = document.getElementById('blNumber').value.trim().toUpperCase();
+        const blNo = document.getElementById('blNumber').value.trim().toUpperCase(); // 소문자를 대문자로 변환
         const blYear = document.getElementById('blYear').value.trim();
         const statusDiv = document.getElementById('status');
         
@@ -269,6 +272,7 @@
             return;
         }
 
+        // 유효성 검사 통과 후 조회 기록 저장 및 목록 갱신
         saveSearch(blNo, blYear);
         loadRecentSearches();
         
@@ -276,8 +280,7 @@
         statusDiv.innerHTML = `<div class="p-4 text-sm text-blue-700 bg-blue-100 border border-blue-400 rounded-md">Master B/L로 조회 중...</div>`;
 
         try {
-            // --- URL 수정 ---
-            const proxyUrlMaster = `https://cargo-trackting-1.onrender.com/api/lookup?blType=master&blNo=${encodeURIComponent(blNo)}&blYear=${encodeURIComponent(blYear)}&apiKey=${encodeURIComponent(apiKey)}`;
+            const proxyUrlMaster = `/api/lookup?blType=master&blNo=${encodeURIComponent(blNo)}&blYear=${encodeURIComponent(blYear)}&apiKey=${encodeURIComponent(apiKey)}`;
             const responseMaster = await fetch(proxyUrlMaster);
             if (!responseMaster.ok) throw new Error(`서버 응답 오류: ${responseMaster.status}`);
             
@@ -292,9 +295,7 @@
             }
 
             statusDiv.innerHTML = `<div class="p-4 text-sm text-blue-700 bg-blue-100 border border-blue-400 rounded-md">Master B/L 정보 없음. House B/L로 조회 중...</div>`;
-            
-            // --- URL 수정 ---
-            const proxyUrlHouse = `https://cargo-trackting-1.onrender.com/api/lookup?blType=house&blNo=${encodeURIComponent(blNo)}&blYear=${encodeURIComponent(blYear)}&apiKey=${encodeURIComponent(apiKey)}`;
+            const proxyUrlHouse = `/api/lookup?blType=house&blNo=${encodeURIComponent(blNo)}&blYear=${encodeURIComponent(blYear)}&apiKey=${encodeURIComponent(apiKey)}`;
             const responseHouse = await fetch(proxyUrlHouse);
             if (!responseHouse.ok) throw new Error(`서버 응답 오류: ${responseHouse.status}`);
             
