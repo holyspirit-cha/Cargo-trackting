@@ -1,65 +1,51 @@
-// server.js (수정된 코드)
+// 필요한 라이브러리들을 불러옵니다.
+const express = require('express'); // 웹 서버를 위한 Express
+const axios = require('axios');   // 외부 API 요청을 위한 Axios
+const cors = require('cors');     // CORS 문제를 해결하기 위한 CORS 미들웨어
 
-// 1. 필요한 라이브러리 불러오기
-const express = require('express');
-const path = require('path');
-
-// 2. 서버 설정
+// Express 앱을 생성합니다.
 const app = express();
-const PORT = 3000;
 
-// 3. 프록시 API 경로 설정
+// Render와 같은 호스팅 서비스에서 제공하는 포트 또는 기본 3000번 포트를 사용합니다.
+const PORT = process.env.PORT || 3000;
+
+// CORS 미들웨어를 사용하여 모든 도메인에서의 요청을 허용합니다.
+// 이렇게 하면 Capacitor 앱에서 서버로 요청을 보낼 때 차단되지 않습니다.
+app.use(cors());
+
+// '/api/lookup' 경로로 GET 요청이 오면 처리할 라우트입니다.
 app.get('/api/lookup', async (req, res) => {
-  // 'node-fetch' 라이브러리를 동적으로 import 합니다.
-  const fetch = (await import('node-fetch')).default;
+    // 1. 클라이언트(앱)에서 보낸 쿼리 파라미터를 추출합니다.
+    const { blType, blNo, blYear, apiKey } = req.query;
 
-  // 웹페이지에서 보낸 파라미터(B/L번호, 연도, 인증키, B/L 타입)를 받음
-  const { blNo, blYear, apiKey, blType } = req.query;
+    // 2. 관세청 Open API의 실제 주소를 설정합니다.
+    const serviceUrl = 'https://unipass.customs.go.kr:38010/ext/rest/cargCsclPrgsInfoQry/retrieveCargCsclPrgsInfo';
 
-  // 파라미터가 없으면 에러 반환
-  if (!blNo || !blYear || !apiKey || !blType) {
-    return res.status(400).send('<error>필수 파라미터(B/L 번호, 연도, B/L 유형)가 누락되었습니다.</error>');
-  }
+    // 3. API 요청에 필요한 파라미터를 객체로 만듭니다.
+    const params = {
+        crky: apiKey, // 인증키
+        cargMtNo: blType === 'master' ? blNo : '', // Master B/L일 경우 화물관리번호
+        mblNo: blType === 'master' ? blNo : '', // Master B/L 번호
+        hblNo: blType === 'house' ? blNo : '', // House B/L 번호
+        blYy: blYear, // B/L 연도
+    };
 
-  // 실제 관세청 API URL의 기본 부분을 생성
-  let targetUrl = `https://unipass.customs.go.kr:38010/ext/rest/cargCsclPrgsInfoQry/retrieveCargCsclPrgsInfo?crkyCn=${apiKey}&blYy=${blYear}`;
+    try {
+        // 4. Axios를 사용해 관세청 API에 GET 요청을 보냅니다.
+        const response = await axios.get(serviceUrl, { params });
 
-  // B/L 타입에 따라 MBL 또는 HBL 파라미터를 동적으로 추가
-  if (blType === 'master') {
-    targetUrl += `&mblNo=${encodeURIComponent(blNo)}`;
-  } else { // 기본값은 'house'
-    targetUrl += `&hblNo=${encodeURIComponent(blNo)}`;
-  }
+        // 5. 관세청 서버로부터 받은 XML 데이터를 클라이언트에 그대로 전달합니다.
+        res.header('Content-Type', 'application/xml');
+        res.send(response.data);
 
-  try {
-    // 관세청 API로 대신 요청을 보냄
-    const apiResponse = await fetch(targetUrl);
-    
-    // 관세청에서 받은 응답(XML)을 텍스트로 변환
-    const xmlText = await apiResponse.text();
-    
-    // 받은 XML을 웹페이지로 그대로 전달
-    res.type('application/xml');
-    res.send(xmlText);
-
-  } catch (error) {
-    console.error('프록시 에러:', error);
-    res.status(500).send('<error>API 호출 중 서버에서 에러가 발생했습니다.</error>');
-  }
+    } catch (error) {
+        // 6. 에러가 발생하면 콘솔에 로그를 남기고, 클라이언트에는 500 에러를 보냅니다.
+        console.error('API 요청 중 에러 발생:', error.message);
+        res.status(500).json({ message: '관세청 API 서버 요청에 실패했습니다.' });
+    }
 });
 
-// 4. 웹페이지(index.html)를 서비스하기 위한 설정
-// 이 코드는 server.js와 index.html이 같은 폴더에 있다고 가정합니다.
-app.use(express.static(path.join(__dirname)));
-
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'index.html'));
-});
-
-
-// 5. 서버 실행
+// 지정된 포트에서 서버를 실행합니다.
 app.listen(PORT, () => {
-  console.log(`서버가 http://localhost:${PORT} 에서 실행 중입니다.`);
-  console.log('웹 브라우저에서 위 주소로 접속하세요.');
+    console.log(`Proxy server is running on port ${PORT}`);
 });
-
