@@ -1,4 +1,4 @@
-// server.js (수정된 코드)
+// server.js (수정된 코드) wls
 
 // 1. 필요한 라이브러리 불러오기
 const express = require('express');
